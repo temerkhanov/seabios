@@ -13,6 +13,7 @@
 #include "romfile.h" // romfile_loadint
 #include "hw/serialio.h" // SEROFF_IER
 #include "cp437.h"
+#include "fw/paravirt.h"
 
 static u8 video_rows(void)
 {
@@ -514,16 +515,17 @@ void sercon_setup(void)
         return;
 
     struct segoff_s seabios, vgabios;
-    u16 addr;
+    u16 addr = 0;
 
-    addr = romfile_loadint("etc/sercon-port", 0);
-    if (!addr)
-        return;
     dprintf(1, "sercon: using ioport 0x%x\n", addr);
 
-    if (CONFIG_DEBUG_SERIAL)
-        if (addr == CONFIG_DEBUG_SERIAL_PORT)
-            ScreenAndDebug = 0;
+    if (CONFIG_DEBUG_SERIAL &&
+        (addr = CONFIG_DEBUG_SERIAL_PORT)) {
+        ScreenAndDebug = 0;
+    } else if (!(addr = romfile_loadint("etc/sercon-port", 0))) {
+        dprintf(1, "sercon: not configured\n");
+        return;
+    }
 
     vgabios = GET_IVT(0x10);
     seabios = FUNC16(entry_10);
@@ -540,8 +542,10 @@ void sercon_setup(void)
 
     SET_IVT(0x10, FUNC16(entry_sercon));
     SET_LOW(sercon_port, addr);
-    outb(0x03, addr + SEROFF_LCR); // 8N1
-    outb(0x01, addr + 0x02);       // enable fifo
+    if (!runningOnKVM()) {
+        outb(0x03, addr + SEROFF_LCR); // 8N1
+        outb(0x01, addr + 0x02);       // enable fifo
+    }
 }
 
 /****************************************************************
