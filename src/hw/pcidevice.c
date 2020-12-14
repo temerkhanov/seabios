@@ -76,6 +76,7 @@ pci_probe_devices(void)
                 if (secbus > MaxPCIBus)
                     MaxPCIBus = secbus;
             }
+            pci_config_writel(bdf, PCI_COMMAND, 0);
             dprintf(4, "PCI device %pP (vd=%04x:%04x c=%04x)\n"
                     , dev, dev->vendor, dev->device, dev->class);
         }
